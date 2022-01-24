@@ -14,38 +14,56 @@ import org.springframework.web.bind.annotation.RestController;
 public class RESTApi
 {
 
+    MongoClient m_mongoClient = null;
+    MongoDatabase m_testDB = null;
+
+    void connect()
+    {
+        if(m_mongoClient == null)
+        {
+            m_mongoClient = new MongoClient(new MongoClientURI("mongodb://p2db1:9AVX1Al9RkkoGKxxrjibBPmB5uQmnYprnqjL77M1dCik9zV3sD9eJArH0iuwckHsKGZ19wyucn71l1vNp5QofA==@p2db1.mongo.cosmos.azure.com:10255/?ssl=true&retrywrites=false&replicaSet=globaldb&maxIdleTimeMS=120000&appName=@p2db1@"));
+            m_testDB = m_mongoClient.getDatabase("sample-database");
+        }
+    }
+
+	@GetMapping("/delete_data")
+	public String delete_data(
+        @RequestParam(value = "collection", defaultValue = "default_collection") String collection
+    ) {
+        connect();
+
+        MongoCollection<Document> numbersCollection = m_testDB.getCollection(collection);
+        numbersCollection.drop();
+
+        return "deleted collection " + collection;
+    }
+
 	@GetMapping("/get_data")
 	public String get_data(
-        @RequestParam(value = "name", defaultValue = "World") String name
+        @RequestParam(value = "msg", defaultValue = "") String msg,
+        @RequestParam(value = "collection", defaultValue = "default_collection") String collection
     ) {
+        connect();
 
-        String template = "mongodb://%s:%s@%s/sample-database?replicaSet=rs0&readpreference=%s";
-        String username = "dbmaster";
-        String password = "dbmaster";
-        String clusterEndpoint = "docdb-2022-01-23-15-23-39.cluster-cm7mn1dft4ed.us-east-1.docdb.amazonaws.com:27017";
-        String readPreference = "secondaryPreferred";
-        String connectionString = String.format(template, username, password, clusterEndpoint, readPreference);
+        MongoCollection<Document> numbersCollection = m_testDB.getCollection(collection);
 
-        MongoClientURI clientURI = new MongoClientURI(connectionString);
-        MongoClient mongoClient = new MongoClient(clientURI);
-
-        MongoDatabase testDB = mongoClient.getDatabase("sample-database");
-        MongoCollection<Document> numbersCollection = testDB.getCollection("sample-collection");
-
-        Document doc = new Document("name", "pi").append("value", 3.14159);
-        numbersCollection.insertOne(doc);
+        if(msg.length() > 0)
+        {
+            Document doc = new Document("msg", msg);
+            numbersCollection.insertOne(doc);
+        }
 
         MongoCursor<Document> cursor = numbersCollection.find().iterator();
+
+        String output = "";
         try {
             while (cursor.hasNext()) {
-                System.out.println(cursor.next().toJson());
+                output += cursor.next().toJson();
             }
         } finally {
             cursor.close();
         }
 
-        mongoClient.close();
-
-        return String.format("get_data");
+        return output;
     }
 }
